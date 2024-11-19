@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Union
 import numpy as np
 
-from scipy.spatial import ConvexHull
+from . import utils
 
 
 @dataclass
@@ -83,30 +83,6 @@ def _get_beta(
     return beta
 
 
-def _ensure_array(x):
-    if isinstance(x, (int, float)):
-        return np.array([x])
-    return np.array(x)
-
-
-def _symmetrize_trade_off_curves(alpha, beta1, beta2):
-    # Combine alphas and betas into a single array of points
-    points = np.column_stack(
-        (
-            np.concatenate((alpha, alpha)),
-            np.concatenate((beta1, beta2)),
-        )
-    )
-
-    # Calculate the convex hull
-    hull = ConvexHull(points)
-
-    # Get the vertices of the convex hull
-    hull_vertices = points[hull.vertices]
-    idx = np.argsort(hull_vertices[:, 0])
-    return hull_vertices[idx, 0], hull_vertices[idx, 1]
-
-
 def get_beta(
     plrvs: PLRVs,
     alpha: Union[float, np.ndarray],
@@ -125,8 +101,8 @@ def get_beta(
     beta1 = _get_beta(plrvs, alpha_prime)
     beta2 = _get_alpha(plrvs, alpha_prime)
 
-    sym_alpha, sym_beta = _symmetrize_trade_off_curves(alpha_prime, beta1, beta2)
+    sym_alpha, sym_beta = utils.symmetrize_trade_off_curves(alpha_prime, beta1, beta2)
 
     return 1 - np.interp(
-        _ensure_array(alpha), sym_alpha, 1 - sym_beta, left=0.0, right=1.0
+        utils.ensure_array(alpha), sym_alpha, 1 - sym_beta, left=0.0, right=1.0
     )
