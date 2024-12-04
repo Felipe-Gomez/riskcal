@@ -34,29 +34,28 @@ def _log_sub(logx: float, logy: float) -> float:
         return logx
 
 
-def _get_log_y_from_rho(x, alpha, rho=1):
+def _get_log_y_from_rho_grid(x, alpha, rho, y_grid_step=1e-4):
     """
-    Based off of discussion following equation 13 of Zhu et al.:
-    https://arxiv.org/abs/2106.08567
+    Vectorized grid search implementation for finding optimal log_y value.
+    Uses a discrete grid search instead of continuous optimization.
 
-    The notation in this function uses the notation from the paper. This
-    function outputs y (FNR) for a given x (FPR), alpha (Renyi DP order,
-    unlike the notation in the rest of the code), and rho (Renyi DP parameter).
+    Args:
+        x (float): FPR value (between 0 and 1)
+        alpha (float): Renyi DP order
+        rho (float): Renyi DP parameter (default=1)
+        grid_points (int): Number of points in the grid search (default=1000)
+        min_log_y (float): Minimum value for log_y search space (default=-50)
+        max_log_y (float): Maximum value for log_y search space (default=0)
 
-    It computes epsilon_RDP = alpha * rho, then converts the
-    RDP guarantee to a trade-off curve guarantee.
-
-    It solves the optimization problem:
-
-    minimize y
-
-    subject to:
-    function1(y) <= upper = exp( (alpha - 1) epsilon_RDP)
-    function2(y) <= upper = exp( (alpha - 1) epsilon_RDP)
-
-    It does this in log space to ensure numerical stability.
+    Returns:
+        float: Optimal log_y value that minimizes y while satisfying constraints
     """
+    # Create grid of log_y values to search over
+    log_y_grid = np.log(
+        np.linspace(y_grid_step, 1, int(np.ceil((1.0 - 2 * y_grid_step) / y_grid_step)))
+    )
 
+    # Precompute common terms
     logx = np.log(x)
     log1mx = np.log1p(-np.exp(logx))
     epsilon = rho * alpha
@@ -65,82 +64,62 @@ def _get_log_y_from_rho(x, alpha, rho=1):
         upper = (alpha - 1) * epsilon
         sign_alpha = np.sign(alpha - 1)
 
-        # Do this outside of function for speed
+        # Precompute terms used in both functions
         one_minus_alpha_times_log1mx = (1 - alpha) * log1mx
         one_minus_alpha_times_logx = (1 - alpha) * logx
         alpha_times_logx = alpha * logx
         alpha_times_log1mx = alpha * log1mx
 
-        def function1(logy):
-            log1my = np.log1p(-np.exp(logy))
-            term1 = alpha * log1my + one_minus_alpha_times_logx
-            term2 = alpha * logy + one_minus_alpha_times_log1mx
-            return _log_add(term1, term2)
+        # Vectorized computation for all log_y values
+        log1my = np.log1p(-np.exp(log_y_grid))
 
-        def function2(logy):
-            log1my = np.log1p(-np.exp(logy))
-            term1 = alpha_times_logx + (1 - alpha) * log1my
-            term2 = alpha * log1mx + (1 - alpha) * logy
-            return _log_add(term1, term2)
+        # Compute function1 for all points
+        term1_f1 = alpha * log1my + one_minus_alpha_times_logx
+        term2_f1 = alpha * log_y_grid + one_minus_alpha_times_log1mx
+        function1_values = np.logaddexp(term1_f1, term2_f1)
+
+        # Compute function2 for all points
+        term1_f2 = alpha_times_logx + (1 - alpha) * log1my
+        term2_f2 = alpha * log1mx + (1 - alpha) * log_y_grid
+        function2_values = np.logaddexp(term1_f2, term2_f2)
 
     else:
         upper = epsilon
         sign_alpha = 1
-        x = np.exp(logx)
+        x_val = np.exp(logx)
         one_minus_x = np.exp(log1mx)
 
-        def function1(logy):
-            log1my = np.log1p(-np.exp(logy))
-            term1 = x * (logx - log1my)
-            term2 = one_minus_x * (log1mx - logy)
-            return term1 + term2
+        # Vectorized computation for all log_y values
+        log1my = np.log1p(-np.exp(log_y_grid))
+        y_vals = np.exp(log_y_grid)
+        one_minus_y = np.exp(log1my)
 
-        def function2(logy):
-            y = np.exp(logy)
-            log1my = np.log1p(-np.exp(logy))
-            one_minus_y = np.exp(log1my)
+        # Compute function1 for all points
+        term1_f1 = x_val * (logx - log1my)
+        term2_f1 = one_minus_x * (log1mx - log_y_grid)
+        function1_values = term1_f1 + term2_f1
 
-            term1 = y * (logy - log1mx)
-            term2 = one_minus_y * (log1my - logx)
-            return term1 + term2
+        # Compute function2 for all points
+        term1_f2 = y_vals * (log_y_grid - log1mx)
+        term2_f2 = one_minus_y * (log1my - logx)
+        function2_values = term1_f2 + term2_f2
 
-    # Define the objective function (minimize log y)
-    def objective(logy):
-        return logy
+    # Check constraints for all points
+    constraint1_satisfied = sign_alpha * (upper - function1_values) >= 0
+    constraint2_satisfied = sign_alpha * (upper - function2_values) >= 0
 
-    # Define the first constraint (f(y) <= epsilon)
-    def constraint_f(logy):
-        return sign_alpha * (upper - function1(logy[0]))
+    # Find points that satisfy both constraints
+    valid_points = np.logical_and(constraint1_satisfied, constraint2_satisfied)
 
-    # Define the second constraint (g(y) <= epsilon)
-    def constraint_g(logy):
-        return sign_alpha * (upper - function2(logy[0]))
+    # If no valid points found, return None or raise exception
+    if not np.any(valid_points):
+        raise ValueError("No valid solutions found in the grid search range")
 
-    # Combine constraints into a list
-    constraints = [
-        {"type": "ineq", "fun": constraint_f},
-        {"type": "ineq", "fun": constraint_g},
-    ]
+    # Among valid points, find the one that minimizes log_y
+    valid_log_y_values = log_y_grid[valid_points]
+    optimal_idx = np.argmin(valid_log_y_values)
 
-    # Set the bounds for log y
-    bounds = [(-300, -1e-15)]
-
-    # Initial guess for y
-    initial_guess = [np.log(0.5)]
-
-    # Perform the optimization
-    result = minimize(
-        objective, initial_guess, method="SLSQP", bounds=bounds, constraints=constraints
-    )
-
-    # Check and print the results
-    if result.success:
-        return result.x[0]
-    else:
-        warnings.warn(
-            f"Optimization failed for x = {x}, alpha = {alpha}: {result.message}"
-        )
-        return np.nan
+    return valid_log_y_values[optimal_idx]
 
 
 def get_beta(
@@ -153,9 +132,9 @@ def get_beta(
     """
     Get the trade-off curve from rho-zCDP.
     """
-    MAX_ORDER = 64
+    MAX_ORDER = 128
     MIN_ORDER = 0.5
-    NUM_ORDERS = 20
+    NUM_ORDERS = 64
 
     if isinstance(orders, int):
         orders = np.linspace(MIN_ORDER, MAX_ORDER, orders)
@@ -168,18 +147,17 @@ def get_beta(
         int(np.ceil((1.0 - 2 * alpha_grid_step) / alpha_grid_step)),
     )
 
-    beta_mat = np.zeros((len(orders), len(alpha_prime)))
-    it = enumerate(orders)
-    if verbose:
-        from tqdm import auto as tqdm
+    orders_column = np.asarray(orders)[:, np.newaxis]  # Shape: (n_orders, 1)
+    alpha_prime_row = alpha_prime[np.newaxis, :]  # Shape: (1, n_alpha)
 
-        it = tqdm.tqdm(list(it))
+    log_y_values = np.vectorize(_get_log_y_from_rho_grid)(
+        x=alpha_prime_row,  # Will broadcast across orders
+        alpha=orders_column,  # Will broadcast across alpha_prime
+        rho=rho,  # Scalar value
+    )
 
-    for i, order in it:
-        for j, alpha_val in enumerate(alpha_prime):
-            beta_mat[i, j] = np.exp(
-                _get_log_y_from_rho(rho=rho, x=alpha_val, alpha=order)
-            )
+    # Convert to beta values
+    beta_mat = np.exp(log_y_values)
 
     beta = np.max(beta_mat, axis=0)
     assert len(beta) == len(alpha_prime)

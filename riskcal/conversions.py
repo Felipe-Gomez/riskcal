@@ -115,6 +115,7 @@ def get_advantage_for_rho(
         rho, alpha, alpha_grid_step=alpha_grid_step, orders=orders, verbose=verbose
     )
 
+    alpha_star = 0.0
     for alpha_val, beta_val in reversed(list(zip(alpha, beta))):
         if np.abs(beta_val - alpha_val) <= alpha_grid_step:
             # As we are going from right to left, we will pick a lower beta,
