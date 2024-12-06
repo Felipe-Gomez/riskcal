@@ -106,13 +106,19 @@ def get_epsilon_for_err_rates(delta: float, alpha: float, beta: float) -> float:
 
 def get_advantage_for_rho(
     rho: float,
-    alpha_grid_step: float = 1e-4,
+    alpha_grid_step: float = 1e-2,
+    beta_grid_step: float = 1e-4,
     orders: Union[np.ndarray, int] = None,
     verbose: bool = False,
 ) -> np.ndarray:
     alpha = np.linspace(0, 1, int(1 / alpha_grid_step))
     beta = zcdp.get_beta(
-        rho, alpha, alpha_grid_step=alpha_grid_step, orders=orders, verbose=verbose
+        rho,
+        alpha,
+        alpha_grid_step=alpha_grid_step,
+        beta_grid_step=beta_grid_step,
+        orders=orders,
+        verbose=verbose,
     )
 
     alpha_star = 0.0
@@ -128,11 +134,17 @@ def get_advantage_for_rho(
 def get_beta_for_rho(
     rho: float,
     alpha: Union[float, np.ndarray],
-    alpha_grid_step: float = 1e-4,
+    alpha_grid_step: float = 1e-2,
+    beta_grid_step: float = 1e-4,
     orders: Union[np.ndarray, int] = None,
     verbose: bool = False,
 ) -> np.ndarray:
     """Derive the error rate (e.g., FNR) for a given level of rho-zCDP, and the other error rate (e.g., FPR)."""
     return zcdp.get_beta(
-        rho, alpha, alpha_grid_step=alpha_grid_step, orders=orders, verbose=verbose
+        rho,
+        alpha,
+        alpha_grid_step=alpha_grid_step,
+        beta_grid_step=beta_grid_step,
+        orders=orders,
+        verbose=verbose,
     )
