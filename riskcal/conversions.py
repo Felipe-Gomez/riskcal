@@ -5,7 +5,8 @@ from scipy import stats
 
 from dp_accounting.pld import privacy_loss_distribution
 
-from riskcal import plrv
+from . import plrv
+from . import zcdp
 
 
 def plrvs_from_pld(
@@ -101,3 +102,49 @@ def get_epsilon_for_err_rates(delta: float, alpha: float, beta: float) -> float:
     epsilon1 = np.log((1 - delta - alpha) / beta)
     epsilon2 = np.log((1 - delta - beta) / alpha)
     return np.maximum.reduce([epsilon1, epsilon2, np.zeros_like(epsilon1)])
+
+
+def get_advantage_for_rho(
+    rho: float,
+    alpha_grid_step: float = 1e-2,
+    beta_grid_step: float = 1e-4,
+    orders: Union[np.ndarray, int] = None,
+    verbose: bool = False,
+) -> np.ndarray:
+    alpha = np.linspace(0, 1, int(1 / alpha_grid_step))
+    beta = zcdp.get_beta(
+        rho,
+        alpha,
+        alpha_grid_step=alpha_grid_step,
+        beta_grid_step=beta_grid_step,
+        orders=orders,
+        verbose=verbose,
+    )
+
+    alpha_star = 0.0
+    for alpha_val, beta_val in reversed(list(zip(alpha, beta))):
+        if np.abs(beta_val - alpha_val) <= alpha_grid_step:
+            # As we are going from right to left, we will pick a lower beta,
+            # resulting in a (slight) overestimate of advantage, which is what we want.
+            alpha_star = beta_val
+
+    return 1 - 2 * alpha_star
+
+
+def get_beta_for_rho(
+    rho: float,
+    alpha: Union[float, np.ndarray],
+    alpha_grid_step: float = 1e-2,
+    beta_grid_step: float = 1e-4,
+    orders: Union[np.ndarray, int] = None,
+    verbose: bool = False,
+) -> np.ndarray:
+    """Derive the error rate (e.g., FNR) for a given level of rho-zCDP, and the other error rate (e.g., FPR)."""
+    return zcdp.get_beta(
+        rho,
+        alpha,
+        alpha_grid_step=alpha_grid_step,
+        beta_grid_step=beta_grid_step,
+        orders=orders,
+        verbose=verbose,
+    )

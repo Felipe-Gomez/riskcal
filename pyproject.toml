@@ -9,6 +9,7 @@ readme = "README.md"
 python = ">=3.9,<3.13"
 scipy = "^1.11.3"
 dp-accounting = "^0.4.4"
+tqdm = "^4.66.1"
 
 [tool.poetry.group.dev]
 optional = true
@@ -27,7 +28,7 @@ seaborn = "^0.13.0"
 pandas = "^2.1.1"
 jupyter = "^1.0.0"
 jupytext = "^1.15.2"
-tqdm = "^4.66.1"
+
 torch = "==2.0.0"
 prv-accountant = "^0.2.0"
 
