@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Callable
 
 import numpy as np
 from scipy import stats
@@ -101,3 +101,82 @@ def get_epsilon_for_err_rates(delta: float, alpha: float, beta: float) -> float:
     epsilon1 = np.log((1 - delta - alpha) / beta)
     epsilon2 = np.log((1 - delta - beta) / alpha)
     return np.maximum.reduce([epsilon1, epsilon2, np.zeros_like(epsilon1)])
+
+
+def get_beta_from_privacy_profile(
+    delta_func: Callable[[float], float],
+    alpha: Union[float, np.ndarray],
+    num_points: int = 1000,
+    max_abs_epsilon: float = 20,
+):
+    """Derive the error rate (e.g., FNR) for a given privacy profile function and alpha.
+
+    Vectorized version of Algorithm 4 in https://arxiv.org/abs/2302.07956
+    """
+
+    eps = np.linspace(-max_abs_epsilon, max_abs_epsilon, num_points)
+    deltas = delta_func(eps)
+
+    # Precompute exponentials to avoid repeated exp calculations
+    exp_eps = np.exp(eps)  # shape: (len(eps),)
+    exp_neg_eps = np.exp(-eps)  # shape: (len(eps),)
+
+    def fdp_vectorized(alphas):
+        """
+        Computes the false negative rate at level alpha implied by the
+        collection of (epsilon, delta) pairs, i.e. for each alpha the output is:
+
+        max{0, 1 - deltas - np.exp(eps) * alpha, np.exp(-eps) * (1 - deltas - alpha)}
+
+        This is done with fully vectorized operations, done in-place as much
+        as possible to allow arrays for alpha, epsilon, and delta.
+        """
+
+        num_alphas = alphas.shape[0]
+
+        # Create a 2D view of alphas for broadcasting
+        alpha_2d = alphas[:, np.newaxis]  # shape: (len(alphas), 1)
+
+        term1 = np.empty(
+            (num_alphas, len(eps)), dtype=float
+        )  # shape: (len(alphas), len(eps))
+
+        # make term1 = max(0, 1 - deltas - np.exp(eps) * alphas)
+        # using a temporary array
+        term1[:] = (1.0 - deltas).reshape(1, -1)
+        tmp = exp_eps.reshape(1, -1) * alpha_2d  # shape: (num_alphas, len(eps))
+        term1 -= tmp
+        np.maximum(term1, 0.0, out=term1)
+
+        # use same tmp array to compute exp(-eps) * (1 - deltas - alpha)
+        tmp[:] = (1.0 - deltas).reshape(1, -1)
+        tmp -= alpha_2d
+        tmp *= exp_neg_eps.reshape(1, -1)
+
+        # Take elementwise maximum between term1 and tmp in place
+        np.maximum(term1, tmp, out=term1)
+
+        # Finally, take the max across the eps dimension, shape: (len(alphas),)
+        return np.max(term1, axis=1)
+
+    return fdp_vectorized(alpha)
+
+
+def get_mu_from_privacy_profile(
+    delta_func: Callable[[float], float],
+    alpha_grid_step: float = 1e-4,
+    num_points: int = 1000,
+    max_abs_epsilon: float = 20,
+):
+    """Derive the mu for a given privacy profile function and alpha."""
+    alpha = np.linspace(0, 1, int(1 / alpha_grid_step) + 1)
+    beta = get_beta_from_privacy_profile(
+        delta_func, alpha, num_points=num_points, max_abs_epsilon=max_abs_epsilon
+    )
+    mu_candidates = -stats.norm.ppf(alpha) - stats.norm.ppf(beta)
+
+    # Replace infinity with NaN
+    sanitized_mu_candidates = np.where(mu_candidates == np.inf, np.nan, mu_candidates)
+
+    # Compute the maximum, ignoring NaN
+    return np.nanmax(sanitized_mu_candidates)
