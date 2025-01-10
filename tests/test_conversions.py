@@ -59,9 +59,17 @@ def test_get_beta_symmetrized_in_the_middle():
         np.array([0.1, 0.2, 0.3]),
     ],
 )
-def test_get_advantage_matches_analytic_matching_expression(alpha):
+def test_get_advantage_matches_analytic_expression(alpha):
     mu, pld, plrvs = get_gaussian_plrv_data()
     analytic_advantage = riskcal.conversions.get_advantage_for_mu(mu)
     assert pytest.approx(
         analytic_advantage
     ) == riskcal.conversions.get_advantage_from_pld(pld)
+
+
+def test_get_mu_from_privacy_profile_matches_analytic_expression():
+    mu, pld, plrvs = get_gaussian_plrv_data()
+    mu_estimate = riskcal.conversions.get_mu_from_privacy_profile(
+        pld.get_delta_for_epsilon
+    )
+    assert pytest.approx(mu, abs=1e-2) == mu_estimate
