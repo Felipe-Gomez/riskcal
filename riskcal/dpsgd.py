@@ -1,11 +1,12 @@
 from copy import deepcopy
 from functools import reduce
 from typing import Union
-from dp_accounting.pld import privacy_loss_distribution
+from dp_accounting.pld.privacy_loss_distribution import from_gaussian_mechanism
 from scipy.optimize import root_scalar
 import numpy as np
 
 from riskcal import conversions
+from typing import Callable, Tuple
 
 
 class CTDAccountant:
@@ -17,28 +18,45 @@ class CTDAccountant:
         self.history = []
 
     def step(self, *, noise_multiplier, sample_rate):
-        if len(self.history) > 1:
-            prev_noise_multiplier, prev_sample_rate, prev_steps = self.history[-1]
+        if len(self.history) >= 1:
+            last_noise_multiplier, last_sample_rate, num_steps = self.history.pop()
             if (
-                prev_noise_multiplier == noise_multiplier
-                and prev_sample_rate == sample_rate
+                last_noise_multiplier == noise_multiplier
+                and last_sample_rate == sample_rate
             ):
-                self.history[-1] = (noise_multiplier, sample_rate, prev_steps + 1)
-                return
-        self.history.append((noise_multiplier, sample_rate, 1))
+                self.history.append(
+                    (last_noise_multiplier, last_sample_rate, num_steps + 1)
+                )
+            else:
+                self.history.append(
+                    (last_noise_multiplier, last_sample_rate, num_steps)
+                )
+                self.history.append((noise_multiplier, sample_rate, 1))
+
+        else:
+            self.history.append((noise_multiplier, sample_rate, 1))
 
     def get_pld(self, grid_step=1e-4, use_connect_dots=True):
-        plds = []
-        for noise_multiplier, sample_rate, num_steps in self.history:
-            pld = privacy_loss_distribution.from_gaussian_mechanism(
+        
+        noise_multiplier, sample_rate, num_steps =  self.history[0]
+        pld = from_gaussian_mechanism(
                 standard_deviation=noise_multiplier,
                 sampling_prob=sample_rate,
                 use_connect_dots=use_connect_dots,
                 value_discretization_interval=grid_step,
-            )
-            plds.append(pld.self_compose(num_steps))
-
-        return reduce(lambda a, b: a.compose(b), plds)
+            ).self_compose(num_steps)
+        
+        
+        for noise_multiplier, sample_rate, num_steps in self.history[1:]:
+            pld_new = from_gaussian_mechanism(
+                standard_deviation=noise_multiplier,
+                sampling_prob=sample_rate,
+                use_connect_dots=use_connect_dots,
+                value_discretization_interval=grid_step,
+            ).self_compose(num_steps)
+            pld = pld.compose(pld_new)
+            
+        return pld
 
     def get_epsilon(self, *, delta, **kwargs):
         pld = self.get_pld(**kwargs)
@@ -135,7 +153,7 @@ def get_advantage_for_dpsgd(
     num_steps: int,
     grid_step=1e-4,
 ):
-    pld = privacy_loss_distribution.from_gaussian_mechanism(
+    pld = from_gaussian_mechanism(
         standard_deviation=noise_multiplier,
         sampling_prob=sample_rate,
         use_connect_dots=True,
@@ -151,7 +169,7 @@ def get_beta_for_dpsgd(
     alpha: Union[float, np.ndarray],
     grid_step=1e-4,
 ):
-    pld = privacy_loss_distribution.from_gaussian_mechanism(
+    pld = from_gaussian_mechanism(
         standard_deviation=noise_multiplier,
         sampling_prob=sample_rate,
         use_connect_dots=True,
@@ -159,6 +177,60 @@ def get_beta_for_dpsgd(
     ).self_compose(num_steps)
     return conversions.get_beta_from_pld(pld, alpha)
 
+def inverse_monotone_function(
+    f: Callable[[float], float],
+    f_target: float,
+    bounds: Tuple[float, float],
+    func_threshold: float = np.inf,
+    arg_threshold: float = np.inf,
+    increasing: bool = False,
+):
+    """
+    Finds the value of x such that the monotonic function f(x) 
+    is approximately equal to f_target within a given threshold.
+
+    :param f: A monotonic function (increasing or decreasing) to invert.
+    :param f_target: The target value for f(x).
+    :param bounds: A tuple (lower_x, upper_x) defining the search interval.
+    :param func_threshold: Acceptable error for |f(x) - f_target|.
+    :param arg_threshold: Acceptable error for |upper_x - lower_x|.
+    :param increasing: Indicates if f is increasing (True) or decreasing (False).
+    :return: The value of x that satisfies the threshold conditions.
+    
+    It is guaranteed that the returned x is within the thresholds of the
+    smallest (for monotonically decreasing func) or the largest (for
+    monotonically increasing func) such x. 
+    """
+    
+    # Initialize bounds and midpoint 
+    lower_x, upper_x = bounds
+    mid_x = (upper_x + lower_x)/2
+    f_mid = f(mid_x)
+    
+    # setup check function
+    if increasing:
+        check = lambda f_value, target_value: f_value <= target_value
+        def continue_condition(upper_x, lower_x):
+            return (upper_x - lower_x > arg_threshold) or (abs(f(lower_x) - f_target) > func_threshold)
+    else:
+        check = lambda f_value, target_value: f_value > target_value
+        def continue_condition(upper_x, lower_x):
+            return (upper_x - lower_x > arg_threshold) or (abs(f(upper_x) - f_target) > func_threshold)
+    
+    # run bisection
+    while continue_condition(upper_x, lower_x):
+
+        mid_x = (upper_x + lower_x) / 2
+        f_mid = f(mid_x)
+        if check(f_mid, f_target):
+            lower_x = mid_x
+        else:
+            upper_x = mid_x
+    
+    if increasing:
+        return lower_x
+    else:
+        return upper_x
 
 def find_noise_multiplier_for_err_rates(
     alpha: float,
@@ -166,11 +238,13 @@ def find_noise_multiplier_for_err_rates(
     sample_rate: float,
     num_steps: float,
     grid_step: float = 1e-4,
-    mu_max=100.0,
-    beta_error=0.001,
+    mu_min: float = 0,
+    mu_max: float = 100.0,
+    beta_error: float = 0.001,
+    mu_error: float = 0.1
 ):
     """
-    Find a noise multiplier that satisfies a given target epsilon.
+    Find a noise multiplier that satisfies a given (FPR, FNR) bound
     Adapted from https://github.com/microsoft/prv_accountant/blob/main/prv_accountant/dpsgd.py
 
     :param alpha: Attack FPR bound
@@ -178,10 +252,12 @@ def find_noise_multiplier_for_err_rates(
     :param sample_rate: Probability of a record being in batch for Poisson sampling
     :param num_steps: Number of optimisation steps
     :param grid_step: Discretization grid step
-    :param delta: Value of DP delta
-    :param float mu_max: Maximum value of noise multiplier of the search.
+    :param float mu_min: Minimum value of noise multiplier of the search.
+    :param float mu_max: Maximum value of noise multiplier of the binary search.
+    :param beta_error: numeric threshold for convergence in beta / FNR.
+    :param mu_error: numeric threshold for convergence in mu.
     """
-
+    
     def _get_beta(mu):
         return get_beta_for_dpsgd(
             noise_multiplier=mu,
@@ -190,74 +266,53 @@ def find_noise_multiplier_for_err_rates(
             alpha=alpha,
             grid_step=grid_step,
         )
-
-    mu_R = 1.0
-    beta_R = 0.0
-    while beta_R < beta:
-        mu_R *= np.sqrt(2)
-        try:
-            beta_R = _get_beta(mu_R)
-        except (OverflowError, RuntimeError):
-            pass
-        if mu_R > mu_max:
-            raise RuntimeError(
-                "Finding a suitable noise multiplier has not converged. "
-                "Try decreasing target beta or decreasing sample rate."
-            )
-
-    mu_L = mu_R
-    beta_L = beta_R
-    while beta_L > beta:
-        mu_L /= np.sqrt(2)
-        beta_L = _get_beta(mu_L)
-
-    has_converged = False
-    bracket = [mu_L, mu_R]
-    while not has_converged:
-        mu_err = (bracket[1] - bracket[0]) * 0.01
-
-        mu_guess = root_scalar(
-            lambda mu: _get_beta(mu) - beta,
-            bracket=bracket,
-            xtol=mu_err,
-        ).root
-        bracket = [mu_guess - mu_err, mu_guess + mu_err]
-        beta_low = _get_beta(mu_guess - mu_err)
-        beta_up = _get_beta(mu_guess + mu_err)
-        has_converged = (beta_up - beta_low) < beta_error
-
-    assert _get_beta(bracket[1]) > beta - beta_error
-    return bracket[1]
-
+    bounds = [mu_min, mu_max]
+    mu = inverse_monotone_function(f = _get_beta, 
+                                   f_target = beta, 
+                                   bounds = bounds, 
+                                   func_threshold = beta_error,
+                                   arg_threshold = mu_error,
+                                   increasing = True)
+    
+    return mu
 
 def find_noise_multiplier_for_advantage(
     advantage: float,
     sample_rate: float,
     num_steps: float,
     grid_step: float = 1e-4,
-    mu_max=100.0,
-    advantage_error=0.001,
+    advantage_error: float = 0.001,
+    mu_error: float = 0.1,
+    mu_min: float = 0, 
+    mu_max: float = 100.0
 ):
     """
     Find a noise multiplier that satisfies a given target advantage.
     Adapted from https://github.com/microsoft/prv_accountant/blob/main/prv_accountant/dpsgd.py
 
-    :param alpha: Attack FPR bound
-    :param beta: Attack FNR bound
+    :param advantage: Attack advantage
     :param sample_rate: Probability of a record being in batch for Poisson sampling
     :param num_steps: Number of optimisation steps
     :param grid_step: Discretization grid step
-    :param delta: Value of DP delta
+    :param advantage_error: numeric threshold for convergence in advantage
+    :param mu_error: numeric threshold for convergence in mu.
+    :param float mu_min: Minimum value of noise multiplier of the search.
     :param float mu_max: Maximum value of noise multiplier of the search.
     """
-    # Solve advantage = 1 - 2 * fp
-    fp = -0.5 * (advantage - 1)
-    return find_noise_multiplier_for_err_rates(
-        alpha=fp,
-        beta=fp,
-        sample_rate=sample_rate,
-        num_steps=num_steps,
-        grid_step=grid_step,
-        mu_max=mu_max,
-        beta_error=advantage_error,
-    )
+
+    def _get_advantage(mu):
+        pld = from_gaussian_mechanism(
+            standard_deviation = mu,
+            value_discretization_interval= grid_step,
+            sampling_prob=sample_rate).self_compose(num_steps)
+        return pld.get_delta_for_epsilon(0)
+    
+    bounds = [mu_min, mu_max]
+    mu = inverse_monotone_function(f = _get_advantage, 
+                                   f_target = advantage, 
+                                   bounds = bounds, 
+                                   func_threshold = advantage_error,
+                                   arg_threshold = mu_error,
+                                   increasing = False)
+    
+    return mu

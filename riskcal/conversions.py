@@ -12,31 +12,53 @@ def plrvs_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
 ) -> plrv.PLRVs:
     """
-    Extract PLRVs from a Google PLD object.
+    Extract PLRVs from a Google PLD object. See the docstring in plrv.py for
+    explanation of the notation used in this code. 
+
+    A Google PLD object comes with a remove PLD and an add PLD. 
+    Without loss of generality, the code below chooses the remove pld to be Y 
+    and the add pld to be X. Moreover, the add pld follows Z = log Q(o') / P(o'),
+    o' ~ Q. This means X = -Z, and this minus sign is accounted for in this function. 
+    
+    Since the integer z_0 = lower_loss_Z is the smallest value of Z, it follows that 
+    -z_0 is the largest value for X and -(z_1 + len(pmf_Z) - 1) is the smallest value of X,
+    and hence we set this to be x_0. 
     """
 
     def _get_plrv(pld):
         pld = pld.to_dense_pmf()
         pmf = pld._probs
         lower_loss = pld._lower_loss
-        return lower_loss, pmf
+        infinity_mass = pld._infinity_mass
+        return lower_loss, infinity_mass, pmf
 
-    lower_loss_Y, pmf_Y = _get_plrv(pld._pmf_remove)
-    lower_loss_Z, pmf_Z = _get_plrv(pld._pmf_add)
+    lower_loss_Y, infinity_mass_Y, pmf_Y = _get_plrv(pld._pmf_remove)
+    lower_loss_Z, infinity_mass_Z, pmf_Z = _get_plrv(pld._pmf_add)
+
+    upper_loss_Z = lower_loss_Z + len(pmf_Z) - 1
+    
+    # clean pmfs. Sometimes float errors cause probs to be negative
+    pmf_Y = np.where(pmf_Y < 0, 0, pmf_Y)
+    pmf_Z = np.where(pmf_Z < 0, 0, pmf_Z)
+
+    pmf_Y = pmf_Y * (1 - infinity_mass_Y) / np.sum(pmf_Y)
+    pmf_Z = pmf_Z * (1 - infinity_mass_Z) / np.sum(pmf_Z)
+
+    is_symmetric = pld._symmetric
     return plrv.PLRVs(
-        lower_loss_Y=lower_loss_Y, lower_loss_Z=lower_loss_Z, pmf_Y=pmf_Y, pmf_Z=pmf_Z
+        y0=lower_loss_Y, x0=-upper_loss_Z, pmf_Y=pmf_Y, pmf_X=pmf_Z[::-1],
+        minus_infinity_mass_X = infinity_mass_Z, infinity_mass_Y = infinity_mass_Y,
+        is_symmetric=is_symmetric
     )
-
 
 def get_beta_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
-    alpha: Union[float, np.ndarray],
-    alpha_grid_step: float = 1e-4,
+    alphas: Union[float, np.ndarray],
 ) -> Union[float, np.ndarray]:
     """
     Get the trade-off curve for a given PLD object.
     """
-    return plrv.get_beta(plrvs_from_pld(pld), alpha, alpha_grid_step=alpha_grid_step)
+    return plrv.get_beta(plrvs_from_pld(pld), alphas)
 
 
 def get_advantage_from_pld(
@@ -64,8 +86,12 @@ def get_beta_for_mu(
     Get beta for Gaussian Differential Privacy.
 
     Eq. 6 in https://arxiv.org/abs/1905.02383
+    
+    along with identity 
+    
+    Phi^{-1}(1-alpha) = - Phi^{-1}(alpha)
     """
-    return stats.norm.cdf(stats.norm.ppf(1 - alpha) - mu)
+    return stats.norm.cdf(-stats.norm.ppf(alpha) - mu)
 
 
 def get_beta_for_epsilon_delta(
