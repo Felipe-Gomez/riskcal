@@ -12,17 +12,16 @@ def plrvs_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
 ) -> plrv.PLRVs:
     """
-    Extract PLRVs from a Google PLD object. See the docstring in plrv.py for
-    explanation of the notation used in this code. 
+    Extract PLRVs from a PLD object. See the docstring in plrv.py for notation details.
 
-    A Google PLD object comes with a remove PLD and an add PLD. 
-    Without loss of generality, the code below chooses the remove pld to be Y 
+    A Google PLD object comes with a remove PLD and an add PLD.
+    Without loss of generality, the code below chooses the remove pld to be Y
     and the add pld to be X. Moreover, the add pld follows Z = log Q(o') / P(o'),
-    o' ~ Q. This means X = -Z, and this minus sign is accounted for in this function. 
-    
-    Since the integer z_0 = lower_loss_Z is the smallest value of Z, it follows that 
+    o' ~ Q. This means X = -Z, and this minus sign is accounted for in this function.
+
+    Since the integer z_0 = lower_loss_Z is the smallest value of Z, it follows that
     -z_0 is the largest value for X and -(z_1 + len(pmf_Z) - 1) is the smallest value of X,
-    and hence we set this to be x_0. 
+    and hence we set this to be x_0.
     """
 
     def _get_plrv(pld):
@@ -36,7 +35,7 @@ def plrvs_from_pld(
     lower_loss_Z, infinity_mass_Z, pmf_Z = _get_plrv(pld._pmf_add)
 
     upper_loss_Z = lower_loss_Z + len(pmf_Z) - 1
-    
+
     # clean pmfs. Sometimes float errors cause probs to be negative
     pmf_Y = np.where(pmf_Y < 0, 0, pmf_Y)
     pmf_Z = np.where(pmf_Z < 0, 0, pmf_Z)
@@ -46,10 +45,15 @@ def plrvs_from_pld(
 
     is_symmetric = pld._symmetric
     return plrv.PLRVs(
-        y0=lower_loss_Y, x0=-upper_loss_Z, pmf_Y=pmf_Y, pmf_X=pmf_Z[::-1],
-        minus_infinity_mass_X = infinity_mass_Z, infinity_mass_Y = infinity_mass_Y,
-        is_symmetric=is_symmetric
+        y0=lower_loss_Y,
+        x0=-upper_loss_Z,
+        pmf_Y=pmf_Y,
+        pmf_X=pmf_Z[::-1],
+        minus_infinity_mass_X=infinity_mass_Z,
+        infinity_mass_Y=infinity_mass_Y,
+        is_symmetric=is_symmetric,
     )
+
 
 def get_beta_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
@@ -86,9 +90,9 @@ def get_beta_for_mu(
     Get beta for Gaussian Differential Privacy.
 
     Eq. 6 in https://arxiv.org/abs/1905.02383
-    
-    along with identity 
-    
+
+    along with identity
+
     Phi^{-1}(1-alpha) = - Phi^{-1}(alpha)
     """
     return stats.norm.cdf(-stats.norm.ppf(alpha) - mu)

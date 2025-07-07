@@ -7,11 +7,12 @@ from scipy.optimize import minimize_scalar
 import riskcal
 from riskcal.dpsgd import inverse_monotone_function
 
-'''
-See Appendix A of Kulynych et al. (https://arxiv.org/pdf/2407.02191) 
-for an overview of these functions. As mentioned in the Appendix A, 
-the direct approach, implemented in plrv.py, is the preferred method. 
-'''
+"""
+See Appendix A of Kulynych et al. (https://arxiv.org/abs/2407.02191)
+for an overview of these functions. As mentioned in the Appendix A,
+the direct approach, implemented in plrv.py, is the preferred method.
+"""
+
 
 def find_noise_multiplier_for_epsilon_delta(
     accountant: "opacus.accountants.accountant.IAccountant",
@@ -21,7 +22,7 @@ def find_noise_multiplier_for_epsilon_delta(
     delta: float,
     eps_error: float = 0.001,
     mu_error: float = 0.1,
-    mu_min: float = 0, 
+    mu_min: float = 0,
     mu_max: float = 100.0,
     **accountant_kwargs,
 ) -> float:
@@ -47,17 +48,19 @@ def find_noise_multiplier_for_epsilon_delta(
             acc.step(noise_multiplier=mu, sample_rate=sample_rate)
 
         return acc.get_epsilon(delta=delta, **accountant_kwargs)
-    
+
     bounds = [mu_min, mu_max]
-    mu = inverse_monotone_function(f = _compute_epsilon, 
-                                   f_target = epsilon, 
-                                   bounds = bounds, 
-                                   func_threshold = eps_error,  
-                                   arg_threshold = mu_error,
-                                   increasing = False
-                                  )
-    
+    mu = inverse_monotone_function(
+        f=_compute_epsilon,
+        f_target=epsilon,
+        bounds=bounds,
+        func_threshold=eps_error,
+        arg_threshold=mu_error,
+        increasing=False,
+    )
+
     return mu
+
 
 def find_noise_multiplier_for_advantage(
     accountant: "opacus.accountants.accountant.IAccountant",
@@ -66,7 +69,7 @@ def find_noise_multiplier_for_advantage(
     num_steps: float,
     eps_error: float = 0.001,
     mu_error: float = 0.1,
-    mu_min: float = 0, 
+    mu_min: float = 0,
     mu_max: float = 100.0,
     **accountant_kwargs,
 ):
@@ -78,7 +81,7 @@ def find_noise_multiplier_for_advantage(
     :param sample_rate: Probability of a record being in batch for Poisson sampling
     :param num_steps: Number of optimisation steps
     :param float eps_error: numeric threshold for convergence in epsilon.
-    :param float mu_error: numeric threshold for convergence in mu / noise multiplier 
+    :param float mu_error: numeric threshold for convergence in mu / noise multiplier
     :param float mu_min: Minimum value of noise multiplier of the search.
     :param float mu_max: Maximum value of noise multiplier of the search
     :param accountant_kwargs: Parameters passed to the accountant's `get_epsilon`
@@ -117,7 +120,7 @@ class _ErrRatesAccountant:
         self.num_steps = num_steps
         self.eps_error = eps_error
         self.mu_max = mu_max
-        self.mu_min=mu_min
+        self.mu_min = mu_min
         self.accountant_kwargs = accountant_kwargs
 
     def find_noise_multiplier(self, delta):
@@ -157,7 +160,6 @@ class CalibrationResult:
     calibration_delta: float
 
 
-    
 def find_noise_multiplier_for_err_rates(
     accountant: "opacus.accountants.accountant.IAccountant",
     alpha: float,
@@ -168,14 +170,14 @@ def find_noise_multiplier_for_err_rates(
     eps_error: float = 0.001,
     mu_min: float = 0,
     mu_max: float = 100.0,
-    method: str ="bounded",
+    method: str = "bounded",
     **accountant_kwargs,
 ):
     """
-    Find a noise multiplier that limits attack FPR/FNR rates. 
+    Find a noise multiplier that limits attack FPR/FNR rates.
     Requires minimizing the function find_noise_multiplier(delta)
     over all delta. Currently, only the bounded bethod is supported
-    to do this minimization. 
+    to do this minimization.
 
     :param accountant: Opacus-compatible accountant
     :param alpha: Attack FPR bound
@@ -209,14 +211,14 @@ def find_noise_multiplier_for_err_rates(
 
     if max_delta < delta_error:
         raise ValueError(f"{delta_error=} too low for the requested error rates.")
-    
+
     if method == "bounded":
-        
+
         opt_result = minimize_scalar(
             err_rates_acct_obj.find_noise_multiplier,
             bounds=[delta_error, max_delta],
             options=dict(xatol=delta_error),
-            method = 'bounded'
+            method="bounded",
         )
         if not opt_result.success:
             raise RuntimeError(f"Optimization failed: {opt_result.message}")

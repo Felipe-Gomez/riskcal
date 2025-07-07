@@ -15,6 +15,7 @@ def accountant(request):
 sample_rate = 0.01
 num_dpsgd_steps = 1_000
 
+
 @pytest.mark.parametrize(
     "advantage, sample_rate, num_steps",
     [
@@ -29,18 +30,18 @@ num_dpsgd_steps = 1_000
     ],
 )
 def test_adv_calibration_correctness(accountant, advantage, sample_rate, num_steps):
-    
+
     # chosen ad hoc for speed
     rdp_alphas = np.linspace(1.5, 101, 50)
-    
+
     epsilon_error = 1e-4
     calibrated_mu = riskcal.blackbox.find_noise_multiplier_for_advantage(
-        accountant, 
-        advantage=advantage, 
-        sample_rate=sample_rate, 
+        accountant,
+        advantage=advantage,
+        sample_rate=sample_rate,
         num_steps=num_steps,
-        eps_error = epsilon_error,
-        alphas = rdp_alphas
+        eps_error=epsilon_error,
+        alphas=rdp_alphas,
     )
 
     acct_obj = accountant()
@@ -48,8 +49,9 @@ def test_adv_calibration_correctness(accountant, advantage, sample_rate, num_ste
         acct_obj.step(noise_multiplier=calibrated_mu, sample_rate=sample_rate)
 
     # Verify that mu is calibrated for (0, adv)-DP:
-    numerical_epsilon = acct_obj.get_epsilon(delta=advantage, alphas = rdp_alphas)
+    numerical_epsilon = acct_obj.get_epsilon(delta=advantage, alphas=rdp_alphas)
     assert pytest.approx(numerical_epsilon, abs=epsilon_error) == 0
+
 
 @pytest.mark.parametrize(
     "beta, sample_rate, num_steps, method",
@@ -71,7 +73,7 @@ def test_err_rates_calibration_correctness(
     classical_delta = 1e-5
     delta_error = 0.001
     eps_error = 0.01
-    rdp_alphas = np.linspace(1 +  1e-2, 17, 31)
+    rdp_alphas = np.linspace(1 + 1e-2, 17, 31)
     calibration_result = riskcal.blackbox.find_noise_multiplier_for_err_rates(
         accountant,
         alpha=alpha,
@@ -79,7 +81,7 @@ def test_err_rates_calibration_correctness(
         sample_rate=sample_rate,
         num_steps=num_steps,
         delta_error=delta_error,
-        alphas = rdp_alphas
+        alphas=rdp_alphas,
     )
     calibrated_mu = calibration_result.noise_multiplier
     calibrated_delta = calibration_result.calibration_delta
@@ -88,7 +90,7 @@ def test_err_rates_calibration_correctness(
     for _ in range(num_steps):
         acct_obj.step(noise_multiplier=calibrated_mu, sample_rate=sample_rate)
 
-    epsilon = acct_obj.get_epsilon(delta=calibrated_delta, alphas = rdp_alphas)
+    epsilon = acct_obj.get_epsilon(delta=calibrated_delta, alphas=rdp_alphas)
     expected_epsilon = calibration_result.calibration_epsilon
 
     print(f"CHECK 1: {alpha=}, {beta=} // {epsilon=}, {expected_epsilon=}")
@@ -123,7 +125,7 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
         delta=delta,
         sample_rate=sample_rate,
         num_steps=num_steps,
-        alphas = rdp_alphas
+        alphas=rdp_alphas,
     )
 
     # What is the FNR at alpha = 0.1 for the target epsilon?
@@ -137,7 +139,7 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
         num_steps=num_steps,
         delta_error=delta_error,
         method=method,
-        alphas = rdp_alphas
+        alphas=rdp_alphas,
     )
     calibrated_mu = calibration_result.noise_multiplier
     calibrated_delta = calibration_result.calibration_delta
@@ -149,7 +151,7 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
     acct_obj = accountant()
     for step in range(num_steps):
         acct_obj.step(noise_multiplier=calibrated_mu, sample_rate=sample_rate)
-    obtained_epsilon = acct_obj.get_epsilon(delta=calibrated_delta, alphas = rdp_alphas)
+    obtained_epsilon = acct_obj.get_epsilon(delta=calibrated_delta, alphas=rdp_alphas)
 
     obtained_beta = riskcal.conversions.get_beta_for_epsilon_delta(
         obtained_epsilon, calibrated_delta, alpha
@@ -198,4 +200,6 @@ def test_generic_err_rates_calibration_worse_than_exact(beta, method):
 
     exact_noise_multiplier = 1 / (norm.ppf(1 - alpha) - norm.ppf(beta))
     # assert exact_noise_multiplier <= calibration_result.noise_multiplier
-    assert exact_noise_multiplier == pytest.approx(calibration_result.noise_multiplier, abs=delta_error)
+    assert exact_noise_multiplier == pytest.approx(
+        calibration_result.noise_multiplier, abs=delta_error
+    )

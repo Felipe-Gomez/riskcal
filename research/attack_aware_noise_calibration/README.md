@@ -3,15 +3,15 @@
 ### Installing Dependencies for Reproducing Experiments in the Paper
 
 ```
-poetry install --with experiments --with dev
+uv sync
 ```
 
 ### Reproducing Plots in the Paper
 
 Run:
 ```
-poetry run jupytext --to ipynb research/attack_aware_noise_calibration/notebooks/*.py
-poetry run jupyter notebook
+uv run jupytext --to ipynb research/attack_aware_noise_calibration/notebooks/*.py
+uv run jupyter notebook
 ```
 
 Then, run each notebook in Jupyter.

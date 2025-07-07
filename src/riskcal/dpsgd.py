@@ -37,16 +37,15 @@ class CTDAccountant:
             self.history.append((noise_multiplier, sample_rate, 1))
 
     def get_pld(self, grid_step=1e-4, use_connect_dots=True):
-        
-        noise_multiplier, sample_rate, num_steps =  self.history[0]
+
+        noise_multiplier, sample_rate, num_steps = self.history[0]
         pld = from_gaussian_mechanism(
-                standard_deviation=noise_multiplier,
-                sampling_prob=sample_rate,
-                use_connect_dots=use_connect_dots,
-                value_discretization_interval=grid_step,
-            ).self_compose(num_steps)
-        
-        
+            standard_deviation=noise_multiplier,
+            sampling_prob=sample_rate,
+            use_connect_dots=use_connect_dots,
+            value_discretization_interval=grid_step,
+        ).self_compose(num_steps)
+
         for noise_multiplier, sample_rate, num_steps in self.history[1:]:
             pld_new = from_gaussian_mechanism(
                 standard_deviation=noise_multiplier,
@@ -55,7 +54,7 @@ class CTDAccountant:
                 value_discretization_interval=grid_step,
             ).self_compose(num_steps)
             pld = pld.compose(pld_new)
-            
+
         return pld
 
     def get_epsilon(self, *, delta, **kwargs):
@@ -177,6 +176,7 @@ def get_beta_for_dpsgd(
     ).self_compose(num_steps)
     return conversions.get_beta_from_pld(pld, alpha)
 
+
 def inverse_monotone_function(
     f: Callable[[float], float],
     f_target: float,
@@ -186,7 +186,7 @@ def inverse_monotone_function(
     increasing: bool = False,
 ):
     """
-    Finds the value of x such that the monotonic function f(x) 
+    Finds the value of x such that the monotonic function f(x)
     is approximately equal to f_target within a given threshold.
 
     :param f: A monotonic function (increasing or decreasing) to invert.
@@ -196,27 +196,34 @@ def inverse_monotone_function(
     :param arg_threshold: Acceptable error for |upper_x - lower_x|.
     :param increasing: Indicates if f is increasing (True) or decreasing (False).
     :return: The value of x that satisfies the threshold conditions.
-    
+
     It is guaranteed that the returned x is within the thresholds of the
     smallest (for monotonically decreasing func) or the largest (for
-    monotonically increasing func) such x. 
+    monotonically increasing func) such x.
     """
-    
-    # Initialize bounds and midpoint 
+
+    # Initialize bounds and midpoint
     lower_x, upper_x = bounds
-    mid_x = (upper_x + lower_x)/2
+    mid_x = (upper_x + lower_x) / 2
     f_mid = f(mid_x)
-    
+
     # setup check function
     if increasing:
         check = lambda f_value, target_value: f_value <= target_value
+
         def continue_condition(upper_x, lower_x):
-            return (upper_x - lower_x > arg_threshold) or (abs(f(lower_x) - f_target) > func_threshold)
+            return (upper_x - lower_x > arg_threshold) or (
+                abs(f(lower_x) - f_target) > func_threshold
+            )
+
     else:
         check = lambda f_value, target_value: f_value > target_value
+
         def continue_condition(upper_x, lower_x):
-            return (upper_x - lower_x > arg_threshold) or (abs(f(upper_x) - f_target) > func_threshold)
-    
+            return (upper_x - lower_x > arg_threshold) or (
+                abs(f(upper_x) - f_target) > func_threshold
+            )
+
     # run bisection
     while continue_condition(upper_x, lower_x):
 
@@ -226,11 +233,12 @@ def inverse_monotone_function(
             lower_x = mid_x
         else:
             upper_x = mid_x
-    
+
     if increasing:
         return lower_x
     else:
         return upper_x
+
 
 def find_noise_multiplier_for_err_rates(
     alpha: float,
@@ -241,7 +249,7 @@ def find_noise_multiplier_for_err_rates(
     mu_min: float = 0,
     mu_max: float = 100.0,
     beta_error: float = 0.001,
-    mu_error: float = 0.1
+    mu_error: float = 0.1,
 ):
     """
     Find a noise multiplier that satisfies a given (FPR, FNR) bound
@@ -257,7 +265,7 @@ def find_noise_multiplier_for_err_rates(
     :param beta_error: numeric threshold for convergence in beta / FNR.
     :param mu_error: numeric threshold for convergence in mu.
     """
-    
+
     def _get_beta(mu):
         return get_beta_for_dpsgd(
             noise_multiplier=mu,
@@ -266,15 +274,19 @@ def find_noise_multiplier_for_err_rates(
             alpha=alpha,
             grid_step=grid_step,
         )
+
     bounds = [mu_min, mu_max]
-    mu = inverse_monotone_function(f = _get_beta, 
-                                   f_target = beta, 
-                                   bounds = bounds, 
-                                   func_threshold = beta_error,
-                                   arg_threshold = mu_error,
-                                   increasing = True)
-    
+    mu = inverse_monotone_function(
+        f=_get_beta,
+        f_target=beta,
+        bounds=bounds,
+        func_threshold=beta_error,
+        arg_threshold=mu_error,
+        increasing=True,
+    )
+
     return mu
+
 
 def find_noise_multiplier_for_advantage(
     advantage: float,
@@ -283,8 +295,8 @@ def find_noise_multiplier_for_advantage(
     grid_step: float = 1e-4,
     advantage_error: float = 0.001,
     mu_error: float = 0.1,
-    mu_min: float = 0, 
-    mu_max: float = 100.0
+    mu_min: float = 0,
+    mu_max: float = 100.0,
 ):
     """
     Find a noise multiplier that satisfies a given target advantage.
@@ -302,17 +314,20 @@ def find_noise_multiplier_for_advantage(
 
     def _get_advantage(mu):
         pld = from_gaussian_mechanism(
-            standard_deviation = mu,
-            value_discretization_interval= grid_step,
-            sampling_prob=sample_rate).self_compose(num_steps)
+            standard_deviation=mu,
+            value_discretization_interval=grid_step,
+            sampling_prob=sample_rate,
+        ).self_compose(num_steps)
         return pld.get_delta_for_epsilon(0)
-    
+
     bounds = [mu_min, mu_max]
-    mu = inverse_monotone_function(f = _get_advantage, 
-                                   f_target = advantage, 
-                                   bounds = bounds, 
-                                   func_threshold = advantage_error,
-                                   arg_threshold = mu_error,
-                                   increasing = False)
-    
+    mu = inverse_monotone_function(
+        f=_get_advantage,
+        f_target=advantage,
+        bounds=bounds,
+        func_threshold=advantage_error,
+        arg_threshold=mu_error,
+        increasing=False,
+    )
+
     return mu
