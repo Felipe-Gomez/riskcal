@@ -5,7 +5,7 @@ requires-python = ">=3.9"
 description = "Calibrate differentially private algorithms to operational privacy risk measures"
 authors = [
     {name = "Bogdan Kulynych", email = "bogdan@kulyny.ch"},
-    {name = "Juan Felipe Gomez", email = "juangomez@g.harvard.edu"},
+    {name = "Juan Felipe Gomez", email = "gomezjuan772@gmail.com"},
 ]
 readme = "README.md"
 license = "MIT"
