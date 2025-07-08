@@ -2,17 +2,26 @@
 name = "riskcal"
 version = "1.1.0"
 requires-python = ">=3.9"
-description = "Calibrate differentially private algorithms to operational privacy risk measures"
+description = "Compute f-DP trade-off curves and calibrate differentially private algorithms to operational privacy risk measures"
 authors = [
     {name = "Bogdan Kulynych", email = "bogdan@kulyny.ch"},
     {name = "Juan Felipe Gomez", email = "gomezjuan772@gmail.com"},
 ]
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["privacy", "differential privacy"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+]
 dependencies = [
     "dp-accounting==0.4.4",
     "scipy==1.11.3",
 ]
+
+[project.urls]
+Repository = "https://github.com/Felipe-Gomez/riskcal.git"
 
 [dependency-groups]
 dev = [
