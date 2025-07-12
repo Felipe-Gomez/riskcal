@@ -80,7 +80,7 @@ def test_get_beta_symmetrized_in_the_middle():
     numerical_fixed_point_idx = np.argmin(np.abs(beta - analytic_fixed_point_beta))
     numerical_fixed_point = beta[numerical_fixed_point_idx]
 
-    assert analytic_advantage == pytest.approx(
+    assert analytic_fixed_point_beta == pytest.approx(
         numerical_fixed_point, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
     )
 
