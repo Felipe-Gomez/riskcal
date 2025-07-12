@@ -71,9 +71,9 @@ The library implements methods described by Kulynych & Gomez et al., 2024[^1].
 
 #### References
 
-[^1] [Attack-Aware Noise Calibration for Differential
+[^1]: [Attack-Aware Noise Calibration for Differential
 Privacy](https://arxiv.org/abs/2407.02191). NeurIPS 2024.
-[^2] [Unifying Re-Identification, Attribute Inference, and Data Reconstruction
+[^2]: [Unifying Re-Identification, Attribute Inference, and Data Reconstruction
 Risks in Differential Privacy](https://arxiv.org/abs/2507.06969), 2025.
 
 If you make use of the library or methods, please cite:
