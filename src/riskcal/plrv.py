@@ -113,10 +113,14 @@ input and rely on NumPy vectorization for efficient computation.
 """
 
 import warnings
-from dataclasses import dataclass
-from typing import Union
 import numpy as np
+
+from typing import Union
+from dataclasses import dataclass
+
 from dp_accounting.pld.privacy_loss_distribution import PrivacyLossDistribution
+
+from riskcal.utils import _ensure_array
 
 
 @dataclass
@@ -362,13 +366,6 @@ def _inverse_tradeoff_function(
 
     # Done! Return alphas
     return alphas
-
-
-def _ensure_array(x):
-    is_scalar = isinstance(x, (int, float))
-    if is_scalar:
-        return np.asarray([x]), is_scalar
-    return np.asarray(x), False
 
 
 def get_beta(

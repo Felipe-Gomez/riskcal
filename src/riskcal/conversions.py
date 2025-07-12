@@ -2,11 +2,13 @@ from typing import Union
 
 import warnings
 import numpy as np
-from scipy import stats
 
+from scipy import stats
+from scipy import optimize
 from dp_accounting.pld import privacy_loss_distribution
 
 from riskcal import plrv
+from riskcal.utils import _ensure_array
 
 
 def plrvs_from_pld(
@@ -82,6 +84,34 @@ def get_beta_from_pld(
     return plrv.get_beta(plrvs_from_pld(pld), alpha)
 
 
+def get_beta_for_mu(
+    mu: float, alpha: Union[float, np.ndarray]
+) -> Union[float, np.ndarray]:
+    """
+    Get the trade-off curve for a given Gaussian differential privacy parameter.
+
+    Uses Eq. 6 in https://arxiv.org/abs/1905.02383 along with identity:
+    Phi^{-1}(1-alpha) = - Phi^{-1}(alpha)
+    """
+    return stats.norm.cdf(-stats.norm.ppf(alpha) - mu)
+
+
+def get_beta_for_epsilon_delta(
+    epsilon: float, delta: float, alpha: Union[float, np.ndarray]
+) -> Union[float, np.ndarray]:
+    """
+    Get the trade-off curve for given approximate differential privacy parameters.
+
+    Uses Eq. 5 in https://arxiv.org/abs/1905.02383
+
+    >>> np.round(get_beta_for_epsilon_delta(1.0, 0.001, 0.8), 3)
+    0.073
+    """
+    form1 = np.array(1 - delta - np.exp(epsilon) * alpha)
+    form2 = np.array(np.exp(-epsilon) * (1 - delta - alpha))
+    return np.maximum.reduce([form1, form2, np.zeros_like(form1)])
+
+
 def get_advantage_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
 ) -> float:
@@ -93,45 +123,15 @@ def get_advantage_from_pld(
 
 def get_advantage_for_mu(mu: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
     """
-    Get advantage for Gaussian Differential Privacy.
+    Get advantage for a given Gaussian differential privacy parameter.
 
     Corollary 2.13 in https://arxiv.org/abs/1905.02383
     """
     return stats.norm.cdf(mu / 2) - stats.norm.cdf(-mu / 2)
 
 
-def get_beta_for_mu(
-    mu: float, alpha: Union[float, np.ndarray]
-) -> Union[float, np.ndarray]:
-    """
-    Get beta for Gaussian Differential Privacy.
-
-    Eq. 6 in https://arxiv.org/abs/1905.02383
-
-    along with identity
-
-    Phi^{-1}(1-alpha) = - Phi^{-1}(alpha)
-    """
-    return stats.norm.cdf(-stats.norm.ppf(alpha) - mu)
-
-
-def get_beta_for_epsilon_delta(
-    epsilon: float, delta: float, alpha: Union[float, np.ndarray]
-) -> Union[float, np.ndarray]:
-    """Derive the error rate (e.g., FNR) for a given epsilon, delta, and the other error rate (e.g., FPR).
-
-    Eq. 5 in https://arxiv.org/abs/1905.02383
-
-    >>> np.round(get_beta_for_epsilon_delta(1.0, 0.001, 0.8), 3)
-    0.073
-    """
-    form1 = np.array(1 - delta - np.exp(epsilon) * alpha)
-    form2 = np.array(np.exp(-epsilon) * (1 - delta - alpha))
-    return np.maximum.reduce([form1, form2, np.zeros_like(form1)])
-
-
 def get_advantage_for_epsilon_delta(epsilon: float, delta: float) -> float:
-    """Derive advantage from a given epsilon and delta.
+    """Get advantage for given approximate differential privacy parameters.
 
     >>> np.round(get_advantage_for_epsilon_delta(0., 0.001), 3)
     0.001
@@ -148,3 +148,84 @@ def get_epsilon_for_err_rates(delta: float, alpha: float, beta: float) -> float:
     epsilon1 = np.log((1 - delta - alpha) / beta)
     epsilon2 = np.log((1 - delta - beta) / alpha)
     return np.maximum.reduce([epsilon1, epsilon2, np.zeros_like(epsilon1)])
+
+
+def get_bayes_risk_for_mu(mu, prior):
+    """
+    Derive Bayes Risk for a given Gaussian Differential Privacy parameter and prior.
+
+    Based on Eq. 2 in https://arxiv.org/abs/2406.08918
+    """
+    assert mu >= 0, "mu must be >=0"
+    prior, is_scalar = _ensure_array(prior)
+
+    bayes_risk = []
+    for prior_val in prior:
+        pi = np.array([1 - prior_val, prior_val])
+        result = np.zeros_like(pi, dtype=float)
+        # Set result to 0 where pi is 1
+        result[pi == 1] = 0
+
+        mask = (pi != 0) & (pi != 1)
+        a = ((-(mu**2) / 2) - np.log(pi[mask]) - np.log(-1 / (pi[mask] - 1))) / mu
+        b = ((mu**2 / 2) - np.log(pi[mask]) - np.log(-1 / (pi[mask] - 1))) / mu
+        result[mask] = pi[mask] * stats.norm.cdf(a) + (1 - pi[mask]) * stats.norm.sf(b)
+        bayes_risk.append(result[1])
+
+    if is_scalar:
+        return bayes_risk[0]
+    else:
+        return np.array(bayes_risk)
+
+
+def get_bayes_risk_for_mu(mu, prior):
+    """
+    Derive Bayes Risk for a given Gaussian Differential Privacy parameter and prior.
+
+    Based on Eq. 2 in https://arxiv.org/abs/2406.08918
+    """
+    prior, is_scalar = _ensure_array(prior)
+
+    bayes_risk = []
+    for prior_val in prior:
+        pi = np.array([1 - prior_val, prior_val])
+        result = np.zeros_like(pi, dtype=float)
+        result[pi == 1] = 0
+
+        mask = (pi != 0) & (pi != 1)
+        a = ((-(mu**2) / 2) - np.log(pi[mask]) - np.log(-1 / (pi[mask] - 1))) / mu
+        b = ((mu**2 / 2) - np.log(pi[mask]) - np.log(-1 / (pi[mask] - 1))) / mu
+        result[mask] = pi[mask] * stats.norm.cdf(a) + (1 - pi[mask]) * stats.norm.sf(b)
+        bayes_risk.append(result[1])
+
+    if is_scalar:
+        return bayes_risk[0]
+    else:
+        return np.array(bayes_risk)
+
+
+def get_bayes_risk_from_pld(pld, prior):
+    """
+    Derive Bayes Risk for a given PLD object.
+
+    Directly uses Eq. 2 in https://arxiv.org/abs/2406.08918
+    """
+    prior, is_scalar = _ensure_array(prior)
+
+    bayes_risk = []
+    for prior_val in prior:
+        result = optimize.minimize_scalar(
+            lambda x: prior_val * x + (1 - prior_val) * get_beta_from_pld(pld, alpha=x),
+            bounds=(0, 1),
+            method="bounded",
+        )
+        if not result.success:
+            warnings.warn(f"Optimization failed for prior = {prior_val:.4f}")
+            bayes_risk.append(np.nan)
+        else:
+            bayes_risk.append(result.fun)
+
+    if is_scalar:
+        return bayes_risk[0]
+    else:
+        return np.array(bayes_risk)

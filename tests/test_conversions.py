@@ -41,13 +41,11 @@ def test_get_beta_matches_analytic_curve(alpha):
     numerical_beta2 = riskcal.conversions.get_beta_from_pld(pld, alpha=alpha)
 
     # check that numerical beta is close to analytic beta
-    assert (
-        pytest.approx(numerical_beta1, rel=REL_TOLERANCE, abs=ABS_TOLERANCE)
-        == analytic_beta
+    assert analytic_beta == pytest.approx(
+        numerical_beta1, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
     )
-    assert (
-        pytest.approx(numerical_beta2, rel=REL_TOLERANCE, abs=ABS_TOLERANCE)
-        == analytic_beta
+    assert analytic_beta == pytest.approx(
+        numerical_beta2, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
     )
 
 
@@ -61,13 +59,11 @@ def test_deprecated_get_beta_interface():
         numerical_beta2 = riskcal.conversions.get_beta_from_pld(pld, alphas=alpha)
 
     # check that numerical beta is close to analytic beta
-    assert (
-        pytest.approx(numerical_beta1, rel=REL_TOLERANCE, abs=ABS_TOLERANCE)
-        == analytic_beta
+    assert analytic_beta == pytest.approx(
+        numerical_beta1, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
     )
-    assert (
-        pytest.approx(numerical_beta2, rel=REL_TOLERANCE, abs=ABS_TOLERANCE)
-        == analytic_beta
+    assert analytic_beta == pytest.approx(
+        numerical_beta2, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
     )
 
 
@@ -84,9 +80,8 @@ def test_get_beta_symmetrized_in_the_middle():
     numerical_fixed_point_idx = np.argmin(np.abs(beta - analytic_fixed_point_beta))
     numerical_fixed_point = beta[numerical_fixed_point_idx]
 
-    assert (
-        pytest.approx(numerical_fixed_point, rel=REL_TOLERANCE, abs=ABS_TOLERANCE)
-        == analytic_fixed_point_beta
+    assert analytic_advantage == pytest.approx(
+        numerical_fixed_point, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
     )
 
 
@@ -94,7 +89,50 @@ def test_get_advantage_matches_analytic_matching_expression():
     mu, pld, plrvs = get_gaussian_plrv_data()
     analytic_advantage = riskcal.conversions.get_advantage_for_mu(mu)
     numerical_advantage = riskcal.conversions.get_advantage_from_pld(pld)
-    assert (
-        pytest.approx(numerical_advantage, rel=REL_TOLERANCE, abs=ABS_TOLERANCE)
-        == analytic_advantage
+    assert analytic_advantage == pytest.approx(
+        numerical_advantage, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
+    )
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        0.5,
+        np.array([0.1, 0.2, 0.3]),
+    ],
+)
+def test_bayes_risk_matches_analytic_computation(prior):
+    mu, pld, plrvs = get_gaussian_plrv_data()
+
+    numerical_risk = riskcal.conversions.get_bayes_risk_from_pld(pld, prior)
+    analytic_risk = riskcal.conversions.get_bayes_risk_for_mu(mu, prior)
+    assert analytic_risk == pytest.approx(
+        numerical_risk, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
+    )
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        0.1,
+        0.2,
+        0.25,
+        0.75,
+        0.8,
+        0.9,
+    ],
+)
+def test_bayes_risk_is_symmetric(prior):
+    mu, pld, plrvs = get_gaussian_plrv_data()
+
+    numerical_risk1 = riskcal.conversions.get_bayes_risk_from_pld(pld, prior)
+    numerical_risk2 = riskcal.conversions.get_bayes_risk_from_pld(pld, 1 - prior)
+    assert numerical_risk1 == pytest.approx(
+        numerical_risk2, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
+    )
+
+    analytic_risk1 = riskcal.conversions.get_bayes_risk_for_mu(mu, prior)
+    analytic_risk2 = riskcal.conversions.get_bayes_risk_for_mu(mu, 1 - prior)
+    assert analytic_risk1 == pytest.approx(
+        analytic_risk2, rel=REL_TOLERANCE, abs=ABS_TOLERANCE
     )
