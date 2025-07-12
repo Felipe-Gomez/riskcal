@@ -30,11 +30,12 @@ dev = [
     "pluggy>=1.6.0",
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
+    "pytest-codeblocks>=0.17.0",
 ]
 
 [tool.pytest.ini_options]
-addopts = ["-v"]
-testpaths = ["tests"]
+addopts = ["-v", "--codeblocks"]
+testpaths = ["tests", "README.md"]
 
 [tool.uv]
 default-groups = []
