@@ -42,18 +42,18 @@ alpha`.  These error rates and advantage then can be immediately and directly
 translated to a number of notions of privacy risk in terms of attack success:
 
 - *Membership inference attacks.* These attacks directly correspond to the
-trade-off curve. The TPR of an attack at a given FPR is bounded by `1 - beta` at
-FPR `alpha`. The advantage of attacks, TPR - FPR, is bounded by `advantage`[^1].
-- *Singling out.* The probability of singling out an individual is bounded by `1
-- beta` for `alpha` which corresponds to the baseline probability of singling
-out prior to the adversary observing the release. We can also get the maximum
-probability of singling out across all baselines using `advantage`[^2].
+  trade-off curve. The TPR of an attack at a given FPR is bounded by `1 - beta` at
+  FPR `alpha`. The advantage of attacks, TPR - FPR, is bounded by `advantage`[^1].
+- *Singling out.* The probability of singling out an individual is bounded
+  by `1 - beta` for `alpha` which corresponds to the baseline probability of singling
+  out prior to the adversary observing the release. We can also get the maximum
+  probability of singling out across all baselines using `advantage`[^2].
 - *Record reconstruction and attribute inference.* The probability of successful
-partial or full reconstruction of a single training data record, e.g., accuracy
-of guessing a set of attributes, is bounded by `1 - beta` for `alpha` which
-correspond to the baseline probability of such reconstruction in the data
-distribution. As before, we can also get the maximum probability of successful
-reconstruction out across all baselines using `advantage`[^2].
+  partial or full reconstruction of a single training data record, e.g., accuracy
+  of guessing a set of attributes, is bounded by `1 - beta` for `alpha` which
+  correspond to the baseline probability of such reconstruction in the data
+  distribution. As before, we can also get the maximum probability of successful
+  reconstruction out across all baselines using `advantage`[^2].
 
 Most available tools for ensuring DP do not support analyses in terms of f-DP.
 The goal of this library is to provide building blocks to analyze many standard
