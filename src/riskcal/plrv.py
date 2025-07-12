@@ -112,6 +112,7 @@ All of the above functions assume a PLRVs (defined below) instance as
 input and rely on NumPy vectorization for efficient computation.
 """
 
+import warnings
 from dataclasses import dataclass
 from typing import Union
 import numpy as np
@@ -137,7 +138,7 @@ class PLRVs:
 
 def _tradeoff_function(
     plrvs: PLRVs,
-    alphas: np.ndarray,
+    alpha: np.ndarray,
 ) -> np.ndarray:
     """
 
@@ -158,19 +159,19 @@ def _tradeoff_function(
               over finite domains.
             - x0, y0: Offsets for the domain points.
 
-        alphas: np.ndarray
+        alpha: np.ndarray
             Ascending array of FPR values for which to compute FNR.
 
     Returns:
-        betas: np.ndarray
-            Array of FNR values corresponding to the input alphas.
+        beta: np.ndarray
+            Array of FNR values corresponding to the input alpha.
     """
 
-    # Reverse alphas for implementation convenience
-    alphas = alphas[::-1]
+    # Reverse alpha for implementation convenience
+    alpha = alpha[::-1]
 
     # Preallocate beta array for output
-    betas = np.empty_like(alphas)
+    beta = np.empty_like(alpha)
 
     # Length of domains of X and Y (excluding masses at +- ∞)
     k = len(plrvs.pmf_X)
@@ -207,8 +208,8 @@ def _tradeoff_function(
     # ----------------------------------------------------------------------
 
     # Search in ccdf_X[::-1] for the largest index where ccdf_X[index] <= alpha.
-    # Note that reversing ccdf_X aligns with reversed alphas.
-    t = len(plrvs.pmf_X) - np.searchsorted(ccdf_X[::-1], alphas, side="right")
+    # Note that reversing ccdf_X aligns with reversed alpha.
+    t = len(plrvs.pmf_X) - np.searchsorted(ccdf_X[::-1], alpha, side="right")
 
     # ----------------------------------------------------------------------
     # Step 4: Compute j array for Y, which aligns threshold x_t to y_j.
@@ -233,13 +234,13 @@ def _tradeoff_function(
 
     # handle Case 1 and 2 jointly.
     index_case12 = max(index_case1, index_case2)
-    betas[:index_case12] = 0
+    beta[:index_case12] = 0
 
     # Case 4: j > l - 1--> threshold > y_{l-1} --> beta = 1 - Pr[Y = inf]
     index_case4 = np.searchsorted(
         j, l - 1, side="right"
     )  # all j behind index_case4 are <= l - 1
-    betas[index_case4:] = 1 - plrvs.infinity_mass_Y
+    beta[index_case4:] = 1 - plrvs.infinity_mass_Y
 
     # Case 3: y_0 <= threshold <= y_{l-1}
     slice_case3 = np.index_exp[
@@ -249,16 +250,16 @@ def _tradeoff_function(
     j_case3 = j[slice_case3]  # grab Case 3 threshold indices for Domain_Y
 
     # Note: use cdf_X[t_case3 + 1] because we want Pr[X <= x_{t_case3}]
-    gammas = (alphas[slice_case3] - ccdf_X[t_case3 + 1]) / plrvs.pmf_X[t_case3]
-    betas[slice_case3] = cdf_Y[j_case3] - gammas * plrvs.pmf_Y[j_case3]
+    gammas = (alpha[slice_case3] - ccdf_X[t_case3 + 1]) / plrvs.pmf_X[t_case3]
+    beta[slice_case3] = cdf_Y[j_case3] - gammas * plrvs.pmf_Y[j_case3]
 
-    # reverse betas to align with input ascending alphas
-    return betas[::-1]
+    # reverse beta to align with input ascending alpha
+    return beta[::-1]
 
 
 def _inverse_tradeoff_function(
     plrvs: PLRVs,
-    betas: np.ndarray,
+    beta: np.ndarray,
 ) -> np.ndarray:
     """
     Computes the False Positive Rates (FPR) for a set of
@@ -278,16 +279,16 @@ def _inverse_tradeoff_function(
             - x0, y0: Offsets for the domain points.
             - is_symmetric: Boolean indicating whether T(P,Q) = T(Q,P).
 
-        betas: np.ndarray
+        beta: np.ndarray
             Ascending array of FNR values for which to compute FPR.
 
     Returns:
         alphas: np.ndarray
-            Array of FPR values corresponding to the input betas.
+            Array of FPR values corresponding to the input beta.
     """
 
     # Preallocate alpha array for output
-    alphas = np.empty_like(betas)
+    alphas = np.empty_like(beta)
 
     # Length of domains of X and Y (excluding masses at +- inf)
     k = len(plrvs.pmf_X)
@@ -318,7 +319,7 @@ def _inverse_tradeoff_function(
     # ----------------------------------------------------------------------
 
     # Search in cdf_Y for the first index where cdf_Y[index] >= beta.
-    t = np.searchsorted(cdf_Y, betas, side="left")
+    t = np.searchsorted(cdf_Y, beta, side="left")
 
     # ----------------------------------------------------------------------
     # Step 4: Compute j array for X, which aligns threshold y_t to x_j.
@@ -356,7 +357,7 @@ def _inverse_tradeoff_function(
     ]  # indices of the thresholds in Case 3
     t_case2 = t[slice_case2]  # grab Case 2 threshold indices for Domain_Y
     j_case2 = j[slice_case2]  # grab Case 2 threshold indices for Domain_X
-    gammas = (cdf_Y[t_case2] - betas[slice_case2]) / plrvs.pmf_Y[t_case2]
+    gammas = (cdf_Y[t_case2] - beta[slice_case2]) / plrvs.pmf_Y[t_case2]
     alphas[slice_case2] = ccdf_X[j_case2] + gammas * plrvs.pmf_X[j_case2]
 
     # Done! Return alphas
@@ -372,7 +373,8 @@ def _ensure_array(x):
 
 def get_beta(
     plrvs: PLRVs,
-    alphas: Union[float, np.ndarray],
+    alpha: Union[float, np.ndarray] = None,
+    alphas: Union[float, np.ndarray] = None,  # Deprecated.
 ) -> Union[float, np.ndarray]:
     """
     Computes the FNR values corresponding to the input FPR values (alphas).
@@ -400,8 +402,8 @@ def get_beta(
               - Otherwise, the symmetrized curve at each alpha is given by
                 the maximum of T(P,Q)(alpha) and T(Q,P)(alpha).
 
-        4. Returns the FNR values (betas) in the same shape (scalar or array)
-           as the input alphas.
+        4. Returns the FNR values (beta) in the same shape (scalar or array)
+           as the input alpha.
 
     Args:
         plrvs:
@@ -411,29 +413,43 @@ def get_beta(
             - x0, y0: Offsets for the domain points.
             - is_symmetric: Boolean indicating whether T(P,Q) = T(Q,P).
 
-        alphas:
+        alpha:
             A float or array of floats representing the False Positive Rates
             for which we need to compute the False Negative Rates.
 
     Returns:
-        A float (if alphas was a single float) or a NumPy array (if alphas
+        A float (if alpha was a single float) or a NumPy array (if alpha
         was an array) of False Negative Rates corresponding to the input
-        alphas.
+        alpha.
     """
+    if alpha is None and alphas is None:
+        raise ValueError("Must specify alpha.")
 
-    # Convert alphas to array; check if input was scalar
-    alphas, is_scalar = _ensure_array(alphas)
+    elif alpha is not None and alphas is not None:
+        raise ValueError("Must pass either alpha or alphas.")
+
+    elif alphas is not None:
+        warnings.warn(
+            "Parameter 'alphas' is deprecated and will be removed in a future version. "
+            "Use 'alpha' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        alpha = alphas
+
+    # Convert alpha to array; check if input was scalar
+    alpha, is_scalar = _ensure_array(alpha)
 
     # Ensure ascending order
-    is_sorted = np.all(np.diff(alphas) >= 0)
+    is_sorted = np.all(np.diff(alpha) >= 0)
     if not is_sorted:
-        sort_idx = np.argsort(alphas)
-        alphas = alphas[sort_idx]
+        sort_idx = np.argsort(alpha)
+        alpha = alpha[sort_idx]
         undo_sort_indices = np.argsort(sort_idx)
 
     # Symmetric means T(P,Q) = T(Q,P). No need to symmetrize
     if plrvs.is_symmetric:
-        output = _tradeoff_function(plrvs, alphas)
+        output = _tradeoff_function(plrvs, alpha)
 
     # See module docstring for explanation
     else:
@@ -456,43 +472,43 @@ def get_beta(
         # ----------------------------------------------------------------------
         if alpha_bar <= f_alpha_bar:
 
-            # Region partitioning input alphas based on alpha_bar, f_alpha_bar
+            # Region partitioning input alpha based on alpha_bar, f_alpha_bar
             alpha_bar_index = np.searchsorted(
-                alphas, alpha_bar, side="right"
-            )  # all alphas behind index are <= alpha_bar
+                alpha, alpha_bar, side="right"
+            )  # all alpha behind index are <= alpha_bar
             f_alpha_bar_index = np.searchsorted(
-                alphas, f_alpha_bar, side="right"
-            )  # all alphas behind index are <= f_alpha_bar
+                alpha, f_alpha_bar, side="right"
+            )  # all alpha behind index are <= f_alpha_bar
 
-            output = np.empty_like(alphas)
+            output = np.empty_like(alpha)
 
             # 1) Evaluate the symmeterized tradeoff curve for alpha < alpha_bar
             output[:alpha_bar_index] = _tradeoff_function(
-                plrvs, alphas[:alpha_bar_index]
+                plrvs, alpha[:alpha_bar_index]
             )
 
             # 2) Evaluate the symmeterized tradeoff curve in linear region alpha_bar <= alpha <= f_alpha_bar
             output[alpha_bar_index:f_alpha_bar_index] = (
-                alpha_bar + f_alpha_bar - alphas[alpha_bar_index:f_alpha_bar_index]
+                alpha_bar + f_alpha_bar - alpha[alpha_bar_index:f_alpha_bar_index]
             )
 
             # 3) Evaluate the symmeterized tradeoff curve for f_alpha_bar < alpha
             output[f_alpha_bar_index:] = _inverse_tradeoff_function(
-                plrvs, alphas[f_alpha_bar_index:]
+                plrvs, alpha[f_alpha_bar_index:]
             )
 
         else:
             # When alpha_bar > f_alpha_bar, symmetrization = maximum of
             # T(P,Q)(alpha) and T(Q,P)(alpha).
-            tradeoff_arr = _tradeoff_function(plrvs, alphas)
-            inverse_tradeoff_arr = _inverse_tradeoff_function(plrvs, alphas)
+            tradeoff_arr = _tradeoff_function(plrvs, alpha)
+            inverse_tradeoff_arr = _inverse_tradeoff_function(plrvs, alpha)
             output = np.maximum(tradeoff_arr, inverse_tradeoff_arr)
 
-    # Output item if input alphas was a scalar
+    # Output item if input alpha was a scalar
     if is_scalar:
         return output.item()
 
-    # If input array alphas were not sorted, undo the sort
+    # If input array alpha were not sorted, undo the sort
     if not is_sorted:
         output = output[undo_sort_indices]
 

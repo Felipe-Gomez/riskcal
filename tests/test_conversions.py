@@ -37,8 +37,28 @@ def get_subsampled_gaussian_plrv_data():
 def test_get_beta_matches_analytic_curve(alpha):
     mu, pld, plrvs = get_gaussian_plrv_data()
     analytic_beta = riskcal.conversions.get_beta_for_mu(mu, alpha)
-    numerical_beta1 = riskcal.plrv.get_beta(plrvs, alphas=alpha)
-    numerical_beta2 = riskcal.conversions.get_beta_from_pld(pld, alphas=alpha)
+    numerical_beta1 = riskcal.plrv.get_beta(plrvs, alpha=alpha)
+    numerical_beta2 = riskcal.conversions.get_beta_from_pld(pld, alpha=alpha)
+
+    # check that numerical beta is close to analytic beta
+    assert (
+        pytest.approx(numerical_beta1, rel=REL_TOLERANCE, abs=ABS_TOLERANCE)
+        == analytic_beta
+    )
+    assert (
+        pytest.approx(numerical_beta2, rel=REL_TOLERANCE, abs=ABS_TOLERANCE)
+        == analytic_beta
+    )
+
+
+def test_deprecated_get_beta_interface():
+    mu, pld, plrvs = get_gaussian_plrv_data()
+    alpha = 0.5
+    analytic_beta = riskcal.conversions.get_beta_for_mu(mu, alpha)
+
+    with pytest.warns(DeprecationWarning):
+        numerical_beta1 = riskcal.plrv.get_beta(plrvs, alphas=alpha)
+        numerical_beta2 = riskcal.conversions.get_beta_from_pld(pld, alphas=alpha)
 
     # check that numerical beta is close to analytic beta
     assert (
@@ -52,15 +72,14 @@ def test_get_beta_matches_analytic_curve(alpha):
 
 
 def test_get_beta_symmetrized_in_the_middle():
-
     mu, pld, plrvs = get_subsampled_gaussian_plrv_data()
     analytic_advantage = pld.get_delta_for_epsilon(0)
     analytic_fixed_point_beta = 0.5 * (1 - analytic_advantage)
 
-    alphas = np.linspace(0, 1, 100_000)
+    alpha = np.linspace(0, 1, 100_000)
     beta = riskcal.conversions.get_beta_from_pld(
         pld,
-        alphas=alphas,
+        alpha=alpha,
     )
     numerical_fixed_point_idx = np.argmin(np.abs(beta - analytic_fixed_point_beta))
     numerical_fixed_point = beta[numerical_fixed_point_idx]

@@ -1,5 +1,6 @@
 from typing import Union
 
+import warnings
 import numpy as np
 from scipy import stats
 
@@ -57,12 +58,28 @@ def plrvs_from_pld(
 
 def get_beta_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
-    alphas: Union[float, np.ndarray],
+    alpha: Union[float, np.ndarray] = None,
+    alphas: Union[float, np.ndarray] = None,  # Deprecated.
 ) -> Union[float, np.ndarray]:
     """
     Get the trade-off curve for a given PLD object.
     """
-    return plrv.get_beta(plrvs_from_pld(pld), alphas)
+    if alpha is None and alphas is None:
+        raise ValueError("Must specify alpha.")
+
+    elif alpha is not None and alphas is not None:
+        raise ValueError("Must pass either alpha or alphas.")
+
+    elif alphas is not None:
+        warnings.warn(
+            "Parameter 'alphas' is deprecated and will be removed in a future version. "
+            "Use 'alpha' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        alpha = alphas
+
+    return plrv.get_beta(plrvs_from_pld(pld), alpha)
 
 
 def get_advantage_from_pld(
