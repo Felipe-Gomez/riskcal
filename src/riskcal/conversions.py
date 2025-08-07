@@ -308,7 +308,10 @@ def get_beta_for_rho(
     https://arxiv.org/pdf/2106.085677
     """
 
-    print(f"{rho=}")
+    if max_order > 2:
+        warnings.warn(
+            "The procedure is tailored to max_order=2, and can be unstable for higher orders."
+        )
 
     beta = []
     for alpha_val in np.atleast_1d(alpha):
