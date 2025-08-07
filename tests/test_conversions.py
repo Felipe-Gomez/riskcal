@@ -98,3 +98,40 @@ def test_get_advantage_matches_analytic_matching_expression():
         pytest.approx(numerical_advantage, rel=REL_TOLERANCE, abs=ABS_TOLERANCE)
         == analytic_advantage
     )
+
+
+@pytest.mark.parametrize(
+    "epsilon", [0.001, 0.01, 0.1, 0.15, 0.2, 1.0, 2.0, 10.0, 25.0, 50.0, 100.0]
+)
+def test_zcdp_of_randomized_response(epsilon):
+    rho = 0.5 * epsilon**2
+
+    # Check advantage.
+    adv = riskcal.conversions.get_advantage_for_rho(
+        rho=rho,
+    )
+    # Closed-form solution for RR.
+    actual_adv = (np.exp(epsilon) - 1) / (np.exp(epsilon) + 1)
+    # Estimated advantage does not overestimate the true advantage by more than 5 pp.
+    assert adv - actual_adv <= 0.05
+
+    # Alpha that achieves the highest advantage.
+    alpha_star = (1 - adv) / 2
+
+    alpha = np.linspace(0, 1, 20)
+    beta_rr = riskcal.conversions.get_beta_for_epsilon_delta(
+        epsilon=epsilon, delta=0.0, alpha=alpha
+    )
+    beta_zcdp = riskcal.conversions.get_beta_for_rho(
+        rho=rho, alpha=alpha, tol=ABS_TOLERANCE
+    )
+
+    # Check that zCDP trade-off curve is always less than RR trade-off curve.
+    diff = beta_zcdp - beta_rr
+    max_violation = diff.max()
+    assert max_violation <= ABS_TOLERANCE
+
+    # Check that that the trade-off curve touches the advantage point.
+    for alpha_val, beta_val in zip(alpha, beta_zcdp):
+        if alpha_val == pytest.approx(alpha_star):
+            assert beta_val == pytest.approx(alpha_val)
