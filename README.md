@@ -125,8 +125,8 @@ tpr_bound = 1 - beta
 print(f"Max TPR at 1% FPR: {tpr_bound:.3f}")
 ```
 
-_Computing Trade-Off Curves._ The trade-off curve shows the relationship between false positive rate (FPR, `alpha`) and
-false negative rate (FNR, `beta`) for the worst-case attacker. For DP-SGD:
+_Computing Trade-Off Curves._ The trade-off curve shows the relationship between false positive rate
+(FPR, `alpha`) and false negative rate (FNR, `beta`) for the worst-case attacker. For DP-SGD:
 
 ```python
 from riskcal.analysis import get_beta_from_pld
@@ -175,8 +175,9 @@ print(f"Maximum attack advantage: {advantage:.3f}")
 ```
 
 The library works with any DP mechanism
-[supported](https://github.com/google/differential-privacy/tree/main/python/dp_accounting)
-by `dp_accounting` library:
+[supported](https://github.com/google/differential-privacy/tree/main/python/dp_accounting) supported
+by `dp_accounting` library, e.g., arbitrary adaptive compositions of (Subsampled) Gaussian, Discrete
+Gaussian, Laplace mechanisms:
 
 ```python
 from riskcal.analysis import get_beta_from_pld, get_advantage_from_pld
@@ -191,8 +192,9 @@ beta = get_beta_from_pld(pld, alpha=0.1)
 print(f"Advantage: {advantage:.3f}, Beta at alpha=0.1: {beta:.3f}")
 ```
 
-_Gaussian Differential Privacy (GDP)._ Gaussian differential privacy tightly characterizes many DP mechanisms. For a given GDP parameter
-`mu`, get the advantage and the trade-off curve:
+_Gaussian Differential Privacy (GDP)._ Gaussian differential privacy tightly characterizes many DP
+mechanisms based on the Gaussian mechanism or its composition. For a given GDP parameter `mu`, get
+the advantage and the trade-off curve:
 
 ```python
 from riskcal.analysis import get_advantage_from_gdp, get_beta_from_gdp
@@ -207,11 +209,12 @@ advantage = get_advantage_from_gdp(mu)
 alpha = np.linspace(0, 1, 100)
 beta = get_beta_from_gdp(mu, alpha)
 ```
-This is faster than PLD-based computation and works well for Gaussian mechanisms and their compositions.
-See also a dedicated library for accounting of DP mechanisms in terms of GDP, [`gdpnum`](https://github.com/Felipe-Gomez/gdp-numeric).
+This is faster than PLD-based computation.See also a dedicated library for privacy accounting of DP
+mechanisms in terms of GDP, [`gdpnum`](https://github.com/Felipe-Gomez/gdp-numeric).
 
-_Zero-Concentrated Differential Privacy (zCDP) and Renyi DP (RDP)._ Zero-Concentrated Differential Privacy (zCDP) is characterized by a single parameter `rho`.
-Renyi DP is parameterized by an `epsilon` value at a specific divergence `order`.
+_Zero-Concentrated Differential Privacy (zCDP) and Renyi DP (RDP)._ Zero-Concentrated Differential
+Privacy (zCDP) is characterized by a single parameter `rho`.  Renyi DP is parameterized by an
+`epsilon` value at a specific divergence `order`.
 
 Get the trade-off curve from zCDP:
 
@@ -245,9 +248,9 @@ beta = get_beta_from_rdp(epsilon=epsilon, alpha=0.1, order=order)
 print(f"Beta (FNR) at alpha=0.1: {beta:.3f}")
 ```
 
-_Computing Bayes Risk._ Bayes risk measures the maximum accuracy of attacks under a binary prior. This is useful for
-attribute inference (assuming a record has one of two attributes) or membership inference
-(with a prior probability of membership):
+_Computing Bayes Risk._ Bayes risk measures the maximum accuracy of attacks under a binary prior.
+This is useful for attribute inference (assuming a record has one of two attributes) or membership
+inference (with a prior probability of membership):
 
 ```python
 from riskcal.analysis import get_bayes_risk_from_pld
@@ -262,30 +265,9 @@ risk = get_bayes_risk_from_pld(pld, prior=prior)
 print(f"Bayes risk at priors {prior}: {risk}")
 ```
 
-_Composition._ Conversions naturally work with any composed mechanism that can be
-represented by `dp_accounting` PLD objects:
-
-```python
-from dp_accounting.pld.privacy_loss_distribution import (
-    from_gaussian_mechanism,
-    from_laplace_mechanism
-)
-from riskcal.analysis import get_advantage_from_pld
-
-# Compose different mechanisms
-pld = (from_gaussian_mechanism(1.0)
-       .compose(from_laplace_mechanism(0.5))
-       .compose(from_gaussian_mechanism(2.0)))
-
-# Analyze the composition
-advantage = get_advantage_from_pld(pld)
-print(f"Composed mechanism advantage: {advantage:.3f}")
-```
-
 #### Calibration
 
-Instead of calibrating to abstract parameters, you can directly calibrate noise to bound
-attack success rates.
+You can directly calibrate noise to bound attack success rates.
 
 _Calibrating Noise for DP-SGD._ Calibrate to maximum attack advantage:
 
@@ -320,8 +302,9 @@ noise_multiplier = find_noise_multiplier_for_err_rates(
 print(f"Required noise multiplier: {noise_multiplier:.3f}")
 ```
 
-_Calibrating Generic Mechanisms._ For custom mechanisms beyond DP-SGD, use the generic calibration framework. You provide an evaluator
-function that computes privacy metrics for a given parameter value:
+_Calibrating Generic Mechanisms._ For custom mechanisms beyond DP-SGD, use the generic calibration
+framework. You provide an evaluator function that computes privacy metrics for a given parameter
+value:
 
 ```python
 from riskcal.calibration.core import (
