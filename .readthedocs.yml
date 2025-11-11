@@ -10,6 +10,8 @@ build:
     python: "3.13"
   apt_packages:
     - cmake
+    - build-essential
+    - g++
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
