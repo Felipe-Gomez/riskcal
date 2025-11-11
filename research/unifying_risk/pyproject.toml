@@ -1,0 +1,22 @@
+[project]
+name = "unifying-risk"
+version = "0.1.0"
+description = "Reproducing the results."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "dp-accounting==0.4.4",
+    "jupyter>=1.1.1",
+    "jupytext>=1.17.1",
+    "matplotlib==3.9.0",
+    "numpy==1.26.4",
+    "opacus==1.5.2",
+    "pandas==2.2.2",
+    "riskcal",
+    "scikit-learn==1.5.0",
+    "seaborn==0.13.2",
+    "tqdm>=4.67.1",
+]
+
+[tool.uv.sources]
+riskcal = { git = "ssh://git@github.com/Felipe-Gomez/riskcal.git", rev = "71a60ba0779378c0a78e15d6cb6f598560c8ebed" }

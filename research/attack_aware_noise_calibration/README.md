@@ -1,23 +1,20 @@
-# Paper Experiments
+# Code for "Attack-Aware Noise Calibraiton for Differential Privacy"
 
-### Installing Dependencies for Reproducing Experiments in the Paper
+This is the accompanying code to the paper "[Attack-Aware Noise Calibration for Differential
+Privacy](https://arxiv.org/abs/2407.02191)".
 
+Install the environment with:
 ```
 uv sync
 ```
 
-### Reproducing Plots in the Paper
-
-Run:
+To reproduce the plots in the paper, run:
 ```
 uv run jupytext --to ipynb research/attack_aware_noise_calibration/notebooks/*.py
 uv run jupyter notebook
 ```
 
 Then, run each notebook in Jupyter.
-
-
-### Reproducing Data
 
 We provide information from experimental runs from DP-SGD in the
 experiments/data folder. To reproduce these, run:

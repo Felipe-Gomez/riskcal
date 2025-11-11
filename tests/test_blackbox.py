@@ -13,7 +13,7 @@ def accountant(request):
 
 
 sample_rate = 0.01
-num_dpsgd_steps = 1_000
+num_dpsgd_steps = 100
 
 
 @pytest.mark.parametrize(

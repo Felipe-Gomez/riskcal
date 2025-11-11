@@ -1,0 +1,6 @@
+# Sphinx build directory
+build/
+_build/
+
+# Generated files
+source/_autosummary/
