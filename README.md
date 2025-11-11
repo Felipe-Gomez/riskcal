@@ -106,9 +106,7 @@ The library supports computing privacy risk metrics from different privacy repre
 | **RDP** (Renyi DP) | ✓ | – | – |
 | **zCDP** (Zero-Concentrated DP) | ✓ | ✓ | – |
 
-##### Minimal Example
-
-Here's a complete example showing how to evaluate privacy risk for a simple mechanism:
+_Minimal Example._ Here's a complete example showing how to evaluate privacy risk for a simple mechanism:
 
 ```python
 from riskcal import analysis
@@ -127,9 +125,7 @@ tpr_bound = 1 - beta
 print(f"Max TPR at 1% FPR: {tpr_bound:.3f}")
 ```
 
-##### Computing Trade-Off Curves
-
-The trade-off curve shows the relationship between false positive rate (FPR, `alpha`) and
+_Computing Trade-Off Curves._ The trade-off curve shows the relationship between false positive rate (FPR, `alpha`) and
 false negative rate (FNR, `beta`) for the worst-case attacker. For DP-SGD:
 
 ```python
@@ -195,9 +191,7 @@ beta = get_beta_from_pld(pld, alpha=0.1)
 print(f"Advantage: {advantage:.3f}, Beta at alpha=0.1: {beta:.3f}")
 ```
 
-##### Gaussian Differential Privacy (GDP)
-
-Gaussian differential privacy tightly characterizes many DP mechanisms. For a given GDP parameter
+_Gaussian Differential Privacy (GDP)._ Gaussian differential privacy tightly characterizes many DP mechanisms. For a given GDP parameter
 `mu`, get the advantage and the trade-off curve:
 
 ```python
@@ -214,11 +208,9 @@ alpha = np.linspace(0, 1, 100)
 beta = get_beta_from_gdp(mu, alpha)
 ```
 This is faster than PLD-based computation and works well for Gaussian mechanisms and their compositions.
-See also a dedicated library for accounting of DP mechanisms in terms of GDP, [gdpnum](https://github.com/Felipe-Gomez/gdp-numeric)
+See also a dedicated library for accounting of DP mechanisms in terms of GDP, [`gdpnum`](https://github.com/Felipe-Gomez/gdp-numeric).
 
-##### Zero-Concentrated Differential Privacy (zCDP) and Renyi DP (RDP)
-
-Zero-Concentrated Differential Privacy (zCDP) is characterized by a single parameter `rho`.
+_Zero-Concentrated Differential Privacy (zCDP) and Renyi DP (RDP)._ Zero-Concentrated Differential Privacy (zCDP) is characterized by a single parameter `rho`.
 Renyi DP is parameterized by an `epsilon` value at a specific divergence `order`.
 
 Get the trade-off curve from zCDP:
@@ -253,9 +245,7 @@ beta = get_beta_from_rdp(epsilon=epsilon, alpha=0.1, order=order)
 print(f"Beta (FNR) at alpha=0.1: {beta:.3f}")
 ```
 
-##### Computing Bayes Risk
-
-Bayes risk measures the maximum accuracy of attacks under a binary prior. This is useful for
+_Computing Bayes Risk._ Bayes risk measures the maximum accuracy of attacks under a binary prior. This is useful for
 attribute inference (assuming a record has one of two attributes) or membership inference
 (with a prior probability of membership):
 
@@ -272,9 +262,7 @@ risk = get_bayes_risk_from_pld(pld, prior=prior)
 print(f"Bayes risk at priors {prior}: {risk}")
 ```
 
-##### Composition
-
-Conversions naturally work with any composed mechanism that can be
+_Composition._ Conversions naturally work with any composed mechanism that can be
 represented by `dp_accounting` PLD objects:
 
 ```python
@@ -299,9 +287,7 @@ print(f"Composed mechanism advantage: {advantage:.3f}")
 Instead of calibrating to abstract parameters, you can directly calibrate noise to bound
 attack success rates.
 
-##### Calibrating Noise for DP-SGD
-
-Calibrate to maximum attack advantage:
+_Calibrating Noise for DP-SGD._ Calibrate to maximum attack advantage:
 
 ```python
 from riskcal.calibration.dpsgd import find_noise_multiplier_for_advantage
@@ -334,9 +320,7 @@ noise_multiplier = find_noise_multiplier_for_err_rates(
 print(f"Required noise multiplier: {noise_multiplier:.3f}")
 ```
 
-##### Calibrating Generic Mechanisms
-
-For custom mechanisms beyond DP-SGD, use the generic calibration framework. You provide an evaluator
+_Calibrating Generic Mechanisms._ For custom mechanisms beyond DP-SGD, use the generic calibration framework. You provide an evaluator
 function that computes privacy metrics for a given parameter value:
 
 ```python
