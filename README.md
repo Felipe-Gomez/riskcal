@@ -102,9 +102,12 @@ The library supports computing privacy risk metrics from different privacy repre
 |-----------------------|------------------|----------------|------------|
 | **PLD** (Privacy Loss Distribution) | ✓ | ✓ | ✓ |
 | **GDP** (Gaussian DP) | ✓ | ✓ | ✓ |
-| **ADP** (Approximate DP) | ✓ | ✓ | – |
+| **ADP** (Approximate DP) | ✓* | ✓* | – |
 | **RDP** (Renyi DP) | ✓ | – | – |
 | **zCDP** (Zero-Concentrated DP) | ✓ | ✓ | – |
+
+* The conversion from a single pair of (epsilon, delta)-ADP guarantees is very lossy for most
+  mechanisms[^1]. For meaningful risk bounds, use other available representations.
 
 _Minimal Example._ Here's a complete example showing how to evaluate privacy risk for a simple mechanism:
 
